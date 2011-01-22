@@ -21,6 +21,7 @@ __version__ = '0.2.0'
 
 import logging
 import socket
+import re
 
 
 DEFAULT_HOST = 'localhost'
@@ -38,15 +39,8 @@ class SocketError(BeanstalkcException): pass
 
 
 class Connection(object):
-    def __init__(self, host=DEFAULT_HOST, port=DEFAULT_PORT, parse_yaml=True,
+    def __init__(self, host=DEFAULT_HOST, port=DEFAULT_PORT,
                  connection_timeout=DEFAULT_TIMEOUT):
-        if parse_yaml is True:
-            try:
-                parse_yaml = __import__('yaml').load
-            except ImportError:
-                logging.error('Failed to load PyYAML, will not parse YAML')
-                parse_yaml = False
-        self._parse_yaml = parse_yaml or (lambda x: x)
         self._socket = None
         self.host = host
         self.port = port
@@ -119,10 +113,15 @@ class Connection(object):
                                       size_field=1)
         return Job(self, int(jid), body, reserved)
 
-    def _interact_yaml(self, command, expected_ok, expected_err=[]):
+    def _interact_yaml_dict(self, command, expected_ok, expected_err=[]):
         _, body, = self._interact(command, expected_ok, expected_err,
                                   size_field=0)
-        return self._parse_yaml(body)
+        return parse_yaml_dict(body)
+
+    def _interact_yaml_list(self, command, expected_ok, expected_err=[]):
+        _, body, = self._interact(command, expected_ok, expected_err,
+                                  size_field=0)
+        return parse_yaml_list(body)
 
     def _interact_peek(self, command):
         try:
@@ -171,7 +170,7 @@ class Connection(object):
         return self._interact_peek('peek-buried\r\n')
 
     def tubes(self):
-        return self._interact_yaml('list-tubes\r\n', ['OK'])
+        return self._interact_yaml_list('list-tubes\r\n', ['OK'])
 
     def using(self):
         return self._interact_value('list-tube-used\r\n', ['USING'])
@@ -180,7 +179,7 @@ class Connection(object):
         return self._interact_value('use %s\r\n' % name, ['USING'])
 
     def watching(self):
-        return self._interact_yaml('list-tubes-watched\r\n', ['OK'])
+        return self._interact_yaml_list('list-tubes-watched\r\n', ['OK'])
 
     def watch(self, name):
         return int(self._interact_value('watch %s\r\n' % name, ['WATCHING']))
@@ -194,12 +193,12 @@ class Connection(object):
             return 1
 
     def stats(self):
-        return self._interact_yaml('stats\r\n', ['OK'])
+        return self._interact_yaml_dict('stats\r\n', ['OK'])
 
     def stats_tube(self, name):
-        return self._interact_yaml('stats-tube %s\r\n' % name,
-                                  ['OK'],
-                                  ['NOT_FOUND'])
+        return self._interact_yaml_dict('stats-tube %s\r\n' % name,
+                                        ['OK'],
+                                        ['NOT_FOUND'])
 
     def pause_tube(self, name, delay):
         self._interact('pause-tube %s %d\r\n' %(name, delay),
@@ -225,9 +224,9 @@ class Connection(object):
         self._interact('touch %d\r\n' % jid, ['TOUCHED'], ['NOT_FOUND'])
 
     def stats_job(self, jid):
-        return self._interact_yaml('stats-job %d\r\n' % jid,
-                                   ['OK'],
-                                   ['NOT_FOUND'])
+        return self._interact_yaml_dict('stats-job %d\r\n' % jid,
+                                        ['OK'],
+                                        ['NOT_FOUND'])
 
 
 class Job(object):
@@ -266,6 +265,25 @@ class Job(object):
     def stats(self):
         return self.conn.stats_job(self.jid)
 
+def parse_yaml_dict(yaml):
+    """Parse a YAML dict, in the form returned by beanstalkd."""
+    dict = {}
+    for m in re.finditer(r'^\s*([^:\s]+)\s*:\s*([^\s]*)$', yaml, re.M):
+        key, val = m.group(1), m.group(2)
+        # Check the type of the value, and parse it.
+        if key == 'name' or key == 'tube':
+            dict[key] = val   # String, even if it looks like a number
+        elif re.match(r'^(0|-?[1-9][0-9]*)$', val) is not None:
+            dict[key] = int(val) # Integer value
+        elif re.match(r'^(-?\d+(\.\d+)?(e[-+]?[1-9][0-9]*)?)$', val) is not None:
+            dict[key] = float(val) # Float value
+        else:
+            dict[key] = val     # String value
+    return dict
+
+def parse_yaml_list(yaml):
+    """Parse a YAML list, in the form returned by beanstalkd."""
+    return re.findall(r'^- (.*)$', yaml, re.M)
 
 if __name__ == '__main__':
     import doctest, os, signal
@@ -274,7 +292,6 @@ if __name__ == '__main__':
                          'beanstalkd',
                          'beanstalkd', '-l', '127.0.0.1', '-p', '14711')
         doctest.testfile('TUTORIAL.md', optionflags=doctest.ELLIPSIS)
-        doctest.testfile('test/no-yaml.doctest', optionflags=doctest.ELLIPSIS)
         doctest.testfile('test/network.doctest', optionflags=doctest.ELLIPSIS)
     finally:
         os.kill(pid, signal.SIGTERM)

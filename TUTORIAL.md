@@ -9,10 +9,6 @@ Getting Started
 You'll need beanstalkd listening at port 14711 to follow along. So simply start
 it using: `beanstalkd -l 127.0.0.1 -p 14711`
 
-Besides having beanstalkc installed, you'll typically also need PyYAML. If you
-insist, you can also use beanstalkc without PyYAML. For more details see
-Appendix A of this tutorial.
-
 To use beanstalkc we have to import the library and set up a connection to an
 (already running) beanstalkd server:
 
@@ -410,51 +406,3 @@ That's it, for now. We've left a few capabilities untouched (touch and
 time-to-run). But if you've really read through all of the above, send me a
 message and tell me what you think of it. And then go get yourself a treat. You
 certainly deserve it.
-
-
-Appendix A: beanstalkc and YAML
--------------------------------
-
-As beanstalkd uses YAML for diagnostic information (like the results of
-`stats()` or `tubes()`), you'll typically need [PyYAML](). Depending on your
-performance needs, you may want to supplement that with the [libyaml]() C
-extension.
-
-[PyYAML]: http://pyyaml.org/
-[libyaml]: http://pyyaml.org/wiki/LibYAML
-
-If, for whatever reason, you cannot use PyYAML, you can still use beanstalkc
-and just leave the YAML responses unparsed. To do that, pass `parse_yaml=False`
-when creating the `Connection`:
-
-    >>> beanstalk = beanstalkc.Connection(host='localhost',
-    ...                                   port=14711,
-    ...                                   parse_yaml=False)
-
-    >>> beanstalk.tubes()
-    '---\n- default\n'
-
-    >>> beanstalk.stats_tube('default')
-    '---\nname: default\ncurrent-jobs-urgent: 0\ncurrent-jobs-ready: 0\n...'
-
-    >>> beanstalk.close()
-
-This possibility is mostly useful if you don't use the introspective
-capabilities of beanstalkd (`Connection#tubes`, `Connection#watching`,
-`Connection#stats`, `Connection#stats_tube`, and `Job#stats`).
-
-Alternatively, you can also pass a function to be used as YAML parser:
-
-    >>> beanstalk = beanstalkc.Connection(host='localhost',
-    ...                                   port=14711,
-    ...                                   parse_yaml=lambda x: x.split('\n'))
-
-    >>> beanstalk.tubes()
-    ['---', '- default', '']
-
-    >>> beanstalk.stats_tube('default')
-    ['---', 'name: default', 'current-jobs-urgent: 0', ...]
-
-    >>> beanstalk.close()
-
-This should come in handy if PyYAML simply does not fit your needs.
