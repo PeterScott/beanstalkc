@@ -21,7 +21,6 @@ __version__ = '0.2.0'
 
 import logging
 import socket
-import threading
 
 
 DEFAULT_HOST = 'localhost'
@@ -44,7 +43,7 @@ class SocketError(BeanstalkcException):
             raise SocketError(e)
 
 
-class Connection(threading.local):
+class Connection(object):
     def __init__(self, host=DEFAULT_HOST, port=DEFAULT_PORT, parse_yaml=True):
         if parse_yaml is True:
             try:
