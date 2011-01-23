@@ -2,18 +2,17 @@ Python beanstalkd client library
 ====================
 
 beanstalkc is a simple beanstalkd client library for
-Python. [beanstalkd](http://kr.github.com/beanstalkd/) is a fast,
-distributed, in-memory workqueue service.
+Python. [beanstalkd](http://kr.github.com/beanstalkd/) is a fast, distributed,
+in-memory workqueue service.
 
 beanstalkc is pure Python, and is compatible with
-[eventlet](http://eventlet.net/) and
-[gevent](http://www.gevent.org/).
+[eventlet](http://eventlet.net/) and [gevent](http://www.gevent.org/).
 
 Installing
 -------
 
-To use beanstalkc, you only need the `beanstalkc.py` file. There are
-no external dependencies.
+To use beanstalkc, you only need the `beanstalkc.py` file. There are no external
+dependencies.
 
 Usage
 -----
@@ -29,8 +28,7 @@ Here is a short example, to illustrate the flavor of beanstalkc:
     'hey!'
     >>> job.delete()
 
-For more information, see `TUTORIAL.md`, which will explain most
-everything.
+For more information, see `TUTORIAL.md`, which will explain most everything.
 
 License
 ------
