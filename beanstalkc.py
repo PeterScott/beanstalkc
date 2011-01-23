@@ -302,7 +302,7 @@ def parse_yaml_dict(yaml):
     for m in re.finditer(r'^\s*([^:\s]+)\s*:\s*([^\s]*)$', yaml, re.M):
         key, val = m.group(1), m.group(2)
         # Check the type of the value, and parse it.
-        if key == 'name' or key == 'tube':
+        if key == 'name' or key == 'tube' or key == 'version':
             dict[key] = val   # String, even if it looks like a number
         elif re.match(r'^(0|-?[1-9][0-9]*)$', val) is not None:
             dict[key] = int(val) # Integer value
