@@ -43,41 +43,42 @@ class SocketError(BeanstalkcException): pass
 class Connection(object):
     def __init__(self, host=DEFAULT_HOST, port=DEFAULT_PORT,
                  connection_timeout=DEFAULT_TIMEOUT,
-                 reconnect_strategy='exp_backoff',
-                 upper_backoff_bound=DEFAULT_UPPER_BACKOFF_BOUND,
-                 connect_automatically=True):
+                 reconnect_strategy=None,
+                 upper_backoff_bound=DEFAULT_UPPER_BACKOFF_BOUND):
         self._socket = None
         self.host = host
         self.port = port
         self.connection_timeout = connection_timeout
         self.unsuccessful_connects = 0
         self.upper_backoff_bound = upper_backoff_bound
-        if reconnect_strategy in ['exp_backoff', 'constant']:
+        if reconnect_strategy in [None, 'exp_backoff', 'constant']:
             self.reconnect_strategy = reconnect_strategy
         else:
-            raise ValueError('Reconnect strategy must be either exp_backoff or constant')
-        if connect_automatically:
+            raise ValueError('Reconnect strategy must be None, "exp_backoff", or "constant"')
+        if reconnect_strategy is None:
             self.connect()
 
     def _current_wait_time(self):
         """Return amount of time (in seconds) to wait for a connection, and
         between subsequent reconnection attempts."""
         connection_timeout = self.connection_timeout or DEFAULT_TIMEOUT
-        if self.reconnect_strategy == 'exp_backoff':
+        if self.reconnect_strategy is None:
+            return self.connection_timeout
+        elif self.reconnect_strategy == 'exp_backoff':
             r = random.uniform(1.0, 2.0)
             return min(r * connection_timeout * math.pow(2.0, self.unsuccessful_connects),
                        self.upper_backoff_bound)
         elif self.reconnect_strategy == 'constant':
             return connection_timeout
         else:
-            raise ValueError('Reconnect strategy must be either exp_backoff or constant')
+            raise ValueErro('Reconnect strategy must be None, "exp_backoff", or "constant"')
 
     def connect(self):
         """Connect to beanstalkd server, unless already connected."""
         if not self.closed:
             return
         try:
-            if self.unsuccessful_connects > 0:
+            if self.unsuccessful_connects > 0 and self.reconnect_strategy is not None:
                 time.sleep(self._current_wait_time())
             self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self._socket.settimeout(self.connection_timeout and self._current_wait_time())
