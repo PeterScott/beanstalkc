@@ -93,9 +93,18 @@ all underlying socket errors in `beanstalkc.SocketError`. And as basically all
 beanstalkc methods interact with the network this means that all methods may
 throw `SocketError`s.
 
-Finally, whitness that beanstalkc closes the connection if any socket errors
+Since this all happened in SimpleWorker's thread-local connection, it has not
+had any effect on the `w` that we have in the console:
+
+    >>> q.closed
+    False
+
+However, whitness that beanstalkc closes the connection if any socket errors
 occur:
 
+    >>> try: q.stats()
+    ... except beanstalkc.SocketError: print 'Socket error'
+    Socket error
     >>> q.closed
     True
 

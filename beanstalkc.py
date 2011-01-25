@@ -22,6 +22,7 @@ __version__ = '0.2.0'
 import logging
 import socket
 import re
+import threading
 
 
 DEFAULT_HOST = 'localhost'
@@ -38,7 +39,7 @@ class DeadlineSoon(BeanstalkcException): pass
 class SocketError(BeanstalkcException): pass
 
 
-class Connection(object):
+class Connection(threading.local):
     def __init__(self, host=DEFAULT_HOST, port=DEFAULT_PORT,
                  connection_timeout=DEFAULT_TIMEOUT):
         self._socket = None
