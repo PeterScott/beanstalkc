@@ -17,7 +17,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 '''
 
-__version__ = '0.2.0'
+__version__ = '0.2.1'
 
 import logging
 import socket
@@ -39,6 +39,8 @@ class SocketError(BeanstalkcException): pass
 
 
 class Connection(object):
+    """A connection to a beanstalk daemon."""
+    
     def __init__(self, host=DEFAULT_HOST, port=DEFAULT_PORT,
                  connection_timeout=DEFAULT_TIMEOUT):
         self._socket = None
