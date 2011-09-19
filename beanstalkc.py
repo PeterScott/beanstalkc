@@ -82,19 +82,20 @@ class Connection(object):
         """Connect to beanstalkd server, unless already connected."""
         if not self.closed:
             return
-        try:
-            if self.unsuccessful_connects > 0 and self.reconnect_strategy is not None:
-                time.sleep(self._current_wait_time())
-            self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self._socket.settimeout(self.connection_timeout and self._current_wait_time())
-            self._socket.connect((self.host, self.port))
-            self._socket.settimeout(None)
-            self._socket_file = self._socket.makefile('rb')
-            self.unsuccessful_connects = 0
-        except socket.error, e:
-            self.unsuccessful_connects += 1
-            self._socket = None
-            raise SocketError(e)
+        while True:
+            try:
+                if self.unsuccessful_connects > 0 and self.reconnect_strategy is not None:
+                    time.sleep(self._current_wait_time())
+                self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self._socket.settimeout(self.connection_timeout and self._current_wait_time())
+                self._socket.connect((self.host, self.port))
+                self._socket.settimeout(None)
+                self._socket_file = self._socket.makefile('rb')
+                self.unsuccessful_connects = 0
+                return
+            except socket.error, e:
+                self.unsuccessful_connects += 1
+                self._socket = None
 
     def close(self):
         """Close connection to server, if it is open."""
@@ -113,20 +114,21 @@ class Connection(object):
         return self._socket is None
 
     def _interact(self, command, expected_ok, expected_err=[], size_field=None):
-        try:
-            self._socket.sendall(command)
-            status, results = self._read_response()
-            if status in expected_ok:
-                if size_field is not None:
-                    results.append(self._read_body(int(results[size_field])))
-                return results
-            elif status in expected_err:
-                raise CommandFailed(command.split()[0], status, results)
-            else:
-                raise UnexpectedResponse(command.split()[0], status, results)
-        except socket.error, e:
-            self.close()
-            raise SocketError(e)
+        while True:
+            self.connect()
+            try:
+                self._socket.sendall(command)
+                status, results = self._read_response()
+                if status in expected_ok:
+                    if size_field is not None:
+                        results.append(self._read_body(int(results[size_field])))
+                    return results
+                elif status in expected_err:
+                    raise CommandFailed(command.split()[0], status, results)
+                else:
+                    raise UnexpectedResponse(command.split()[0], status, results)
+            except socket.error, e:
+                self.close()
 
     def _read_response(self):
         line = self._socket_file.readline()
