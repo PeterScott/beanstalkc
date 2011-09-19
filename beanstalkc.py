@@ -47,6 +47,8 @@ class Connection(object):
                  connection_timeout=DEFAULT_TIMEOUT,
                  reconnect_strategy=None,
                  upper_backoff_bound=DEFAULT_UPPER_BACKOFF_BOUND):
+        """Create connection. Note that if reconnect strategy is
+        specified, you must call connect() manually."""
         self._socket = None
         self.tube = 'default'
         self.host = host
