@@ -17,7 +17,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 '''
 
-__version__ = '0.2.1'
+__version__ = '0.3.0'
 
 import logging
 import socket
@@ -48,6 +48,7 @@ class Connection(object):
                  reconnect_strategy=None,
                  upper_backoff_bound=DEFAULT_UPPER_BACKOFF_BOUND):
         self._socket = None
+        self.tube = 'default'
         self.host = host
         self.port = port
         self.connection_timeout = connection_timeout
@@ -165,9 +166,12 @@ class Connection(object):
 
     # -- public interface --
 
-    def put(self, body, priority=DEFAULT_PRIORITY, delay=0, ttr=DEFAULT_TTR):
-        """Put a job into the current tube. Returns job id."""
+    def put(self, body, priority=DEFAULT_PRIORITY, delay=0, ttr=DEFAULT_TTR, tube=None):
+        """Put a job into the current tube. Returns job id. If you
+        specify a different tube, it will change the current tube."""
         assert isinstance(body, str), 'Job body must be a str instance'
+        if tube:
+            self.use(tube)
         jid = self._interact_value(
                 'put %d %d %d %d\r\n%s\r\n' %
                     (priority, delay, ttr, len(body), body),
@@ -216,12 +220,15 @@ class Connection(object):
         return self._interact_yaml_list('list-tubes\r\n', ['OK'])
 
     def using(self):
-        """Return a list of all tubes currently being used."""
-        return self._interact_value('list-tube-used\r\n', ['USING'])
+        """Return the tube currently being used."""
+        return self.tube
 
     def use(self, name):
-        """Use a given tube."""
-        return self._interact_value('use %s\r\n' % name, ['USING'])
+        """Use a given tube. If you are already using that tube, this
+        is a no-op and does not contact the server."""
+        if self.tube != name:
+            self.tube = name
+            return self._interact_value('use %s\r\n' % name, ['USING'])
 
     def watching(self):
         """Return a list of all tubes being watched."""
