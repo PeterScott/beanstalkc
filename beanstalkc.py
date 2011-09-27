@@ -78,7 +78,7 @@ class Connection(object):
         elif self.reconnect_strategy == 'constant':
             return connection_timeout
         else:
-            raise ValueErro('Reconnect strategy must be None, "exp_backoff", or "constant"')
+            raise ValueError('Reconnect strategy must be None, "exp_backoff", or "constant"')
 
     def connect(self):
         """Connect to beanstalkd server, unless already connected."""
