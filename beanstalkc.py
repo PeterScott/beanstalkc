@@ -23,6 +23,7 @@ import logging
 import socket
 import re
 import math, random, time
+from threading import Lock
 
 
 DEFAULT_HOST = 'localhost'
@@ -53,6 +54,7 @@ class Connection(object):
         self.tube = 'default'
         self.host = host
         self.port = port
+        self.lock = Lock()
         self.connection_timeout = connection_timeout
         self.unsuccessful_connects = 0
         self.upper_backoff_bound = upper_backoff_bound
@@ -114,21 +116,22 @@ class Connection(object):
         return self._socket is None
 
     def _interact(self, command, expected_ok, expected_err=[], size_field=None):
-        while True:
-            self.connect()
-            try:
-                self._socket.sendall(command)
-                status, results = self._read_response()
-                if status in expected_ok:
-                    if size_field is not None:
-                        results.append(self._read_body(int(results[size_field])))
-                    return results
-                elif status in expected_err:
-                    raise CommandFailed(command.split()[0], status, results)
-                else:
-                    raise UnexpectedResponse(command.split()[0], status, results)
-            except socket.error, e:
-                self.close()
+        with self.lock:
+            while True:
+                self.connect()
+                try:
+                    self._socket.sendall(command)
+                    status, results = self._read_response()
+                    if status in expected_ok:
+                        if size_field is not None:
+                            results.append(self._read_body(int(results[size_field])))
+                        return results
+                    elif status in expected_err:
+                        raise CommandFailed(command.split()[0], status, results)
+                    else:
+                        raise UnexpectedResponse(command.split()[0], status, results)
+                except socket.error, e:
+                    self.close()
 
     def _read_response(self):
         line = self._socket_file.readline()
