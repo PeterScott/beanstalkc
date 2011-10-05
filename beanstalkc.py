@@ -17,7 +17,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 '''
 
-__version__ = '4.0.1'
+__version__ = '4.0.2'
 
 import logging
 import socket
@@ -115,23 +115,27 @@ class Connection(object):
     def closed(self):
         return self._socket is None
 
+    def _interact_nolock(self, command, expected_ok, expected_err=[], size_field=None):
+        """Like _interact, but does not acquire the lock."""
+        while True:
+            self.connect()
+            try:
+                self._socket.sendall(command)
+                status, results = self._read_response()
+                if status in expected_ok:
+                    if size_field is not None:
+                        results.append(self._read_body(int(results[size_field])))
+                    return results
+                elif status in expected_err:
+                    raise CommandFailed(command.split()[0], status, results)
+                else:
+                    raise UnexpectedResponse(command.split()[0], status, results)
+            except socket.error, e:
+                self.close()
+
     def _interact(self, command, expected_ok, expected_err=[], size_field=None):
         with self.lock:
-            while True:
-                self.connect()
-                try:
-                    self._socket.sendall(command)
-                    status, results = self._read_response()
-                    if status in expected_ok:
-                        if size_field is not None:
-                            results.append(self._read_body(int(results[size_field])))
-                        return results
-                    elif status in expected_err:
-                        raise CommandFailed(command.split()[0], status, results)
-                    else:
-                        raise UnexpectedResponse(command.split()[0], status, results)
-                except socket.error, e:
-                    self.close()
+            return self._interact_nolock(command, expected_ok, expected_err, size_field)
 
     def _read_response(self):
         line = self._socket_file.readline()
@@ -147,8 +151,11 @@ class Connection(object):
             raise socket.error('no data read')
         return body
 
-    def _interact_value(self, command, expected_ok, expected_err=[]):
-        return self._interact(command, expected_ok, expected_err)[0]
+    def _interact_value(self, command, expected_ok, expected_err=[], lock=True):
+        if lock:
+            return self._interact(command, expected_ok, expected_err)[0]
+        else:
+            return self._interact_nolock(command, expected_ok, expected_err)[0]
 
     def _interact_job(self, command, expected_ok, expected_err, reserved=True):
         jid, _, body = self._interact(command, expected_ok, expected_err,
@@ -177,13 +184,13 @@ class Connection(object):
         """Put a job into the current tube. Returns job id. If you
         specify a different tube, it will change the current tube."""
         assert isinstance(body, str), 'Job body must be a str instance'
-        if tube:
-            self.use(tube)
-        jid = self._interact_value(
-                'put %d %d %d %d\r\n%s\r\n' %
-                    (priority, delay, ttr, len(body), body),
-                ['INSERTED', 'BURIED'], ['JOB_TOO_BIG'])
-        return int(jid)
+        with self.lock:
+            if tube:
+                self.use(tube, lock=False)
+            jid = self._interact_value('put %d %d %d %d\r\n%s\r\n' %
+                                       (priority, delay, ttr, len(body), body),
+                                       ['INSERTED', 'BURIED'], ['JOB_TOO_BIG'], lock=False)
+            return int(jid)
 
     def reserve(self, timeout=None):
         """Reserve a job from one of the watched tubes, with optional timeout in
@@ -230,12 +237,12 @@ class Connection(object):
         """Return the tube currently being used."""
         return self.tube
 
-    def use(self, name):
+    def use(self, name, lock=True):
         """Use a given tube. If you are already using that tube, this
         is a no-op and does not contact the server."""
         if self.tube != name:
             self.tube = name
-            return self._interact_value('use %s\r\n' % name, ['USING'])
+            return self._interact_value('use %s\r\n' % name, ['USING'], lock=lock)
 
     def watching(self):
         """Return a list of all tubes being watched."""
